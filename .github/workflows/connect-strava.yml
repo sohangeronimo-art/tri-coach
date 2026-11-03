@@ -1,0 +1,43 @@
+name: Connect Strava
+
+# One-off. Paste the 'code' from the Strava approval page (see README step 5).
+on:
+  workflow_dispatch:
+    inputs:
+      code:
+        description: "The code= value from the Strava redirect URL"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync
+  cancel-in-progress: false
+
+jobs:
+  connect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Exchange code and sync
+        env:
+          APP_PASSPHRASE: ${{ secrets.APP_PASSPHRASE }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_CODE: ${{ inputs.code }}
+        run: python -m engine.run --strava-code "$STRAVA_CODE"
+      - name: Save
+        run: |
+          git config user.name "tri-coach bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/data.enc state/state.enc
+          git diff --cached --quiet || git commit -m "Strava connected"
+          git pull --rebase --autostash && git push
