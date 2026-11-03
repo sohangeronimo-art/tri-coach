@@ -42,6 +42,21 @@ It opens full-screen, works offline, and remembers the passphrase.
 
 Garmin already copies workouts to Strava, so duplicates are merged and Garmin wins (it has more detail).
 
+## Setting up your own copy (for friends)
+
+Everyone gets their own repo, their own secrets and their own app link. Nobody can see anyone else's data.
+
+1. Make a free GitHub account.
+2. Open https://github.com/sohangeronimo-art/tri-coach → **Use this template → Create a new repository**.
+   Name it `tri-coach`, set it to **Public**, and create it.
+3. In your new repo, open `config/athlete.json` → pencil icon → replace it with your own details
+   (Claude can write this file for you: give it your race, date, swim pace, run pace, FTP if known,
+   which days you can train and roughly how many hours). Commit.
+4. Do setup steps 1–4 above in **your** repo. Your app will be at `https://YOUR-USERNAME.github.io/tri-coach/`.
+
+The copy carries the original owner's encrypted files. They can't be read without that owner's passphrase,
+and your first sync replaces them with your own.
+
 ## How the plan adapts
 
 * **Every morning**: last night's HRV, resting HR, sleep and Garmin Training Readiness give a readiness score.

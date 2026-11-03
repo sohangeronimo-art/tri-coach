@@ -20,7 +20,7 @@ def encrypt(obj, passphrase):
     raw = gzip.compress(json.dumps(obj, separators=(",", ":")).encode(), mtime=0)
     ct = AESGCM(_key(passphrase, salt)).encrypt(iv, raw, None)
     b = lambda x: base64.b64encode(x).decode()
-    return {"v": 1, "alg": "AES-GCM", "kdf": "PBKDF2-SHA256", "iter": ITER, "gzip": True,
+    return {"v": 1, "repo": os.environ.get("GITHUB_REPOSITORY"), "alg": "AES-GCM", "kdf": "PBKDF2-SHA256", "iter": ITER, "gzip": True,
             "salt": b(salt), "iv": b(iv), "ct": b(ct)}
 
 
@@ -42,4 +42,10 @@ def read(path, passphrase, default=None):
     if not os.path.exists(path):
         return default
     with open(path) as f:
-        return decrypt(json.load(f), passphrase)
+        blob = json.load(f)
+    here = os.environ.get("GITHUB_REPOSITORY")
+    if here and blob.get("repo") and blob["repo"] != here:
+        # A copied repo (e.g. a friend's) carries the original owner's encrypted data. Start fresh.
+        print(f"State belongs to {blob['repo']}, not {here}: starting fresh")
+        return default
+    return decrypt(blob, passphrase)
