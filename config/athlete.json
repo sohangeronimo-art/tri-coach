@@ -10,8 +10,7 @@
     "bike_km": 40,
     "run_km": 10
   },
-  "plan_start": "2026-11-09",
-
+  "plan_start": "2026-12-01",
   "baselines": {
     "swim_css_s_per_100m": 105,
     "run_threshold_pace_s_per_km": 320,
@@ -20,26 +19,80 @@
     "bike_lthr_bpm": null,
     "max_hr_bpm": null,
     "resting_hr_bpm": null,
-    "notes": "CSS from stated ~1:45/100m. Run threshold estimated from a 10k at 5:40/km (upper Z3). FTP unknown until the week-1 test. Garmin values override these once synced."
+    "notes": "CSS from stated ~1:45/100m. Run threshold estimated from a 10k at 5:40/km (upper Z3); Garmin now supplies threshold pace + HR. FTP from the first FTP test."
   },
-
   "volume": {
-    "start_hours": 7.5,
-    "peak_hours": 11.5
+    "start_hours": 6.5,
+    "peak_hours": 10.5
   },
-
+  "body": {
+    "start_kg": 79,
+    "goal_kg": 75,
+    "goal_by": "2027-01-31",
+    "note": "Cut during the low-volume Dec–Jan block, then eat to fuel training from the ramp."
+  },
   "schedule_confirmed": false,
   "rest_day": "Sat",
-  "week_template": {
-    "Mon": ["swim_endurance", "run_long"],
-    "Tue": ["bike_quality", "strength"],
-    "Wed": ["run_quality", "swim_technique"],
-    "Thu": ["swim_threshold"],
-    "Fri": ["bike_endurance", "run_easy"],
-    "Sat": [],
-    "Sun": ["bike_long", "run_brick"]
+  "low_frequency": {
+    "until": "2027-01-24",
+    "note": "Dec + Jan: max 4 training days a week (busy social stretch). Doubles on Mon/Tue (days off work). Full plan from Mon 25 Jan.",
+    "hours": [
+      4.5,
+      5.5
+    ],
+    "recovery_weeks": [
+      4
+    ],
+    "template": {
+      "Mon": [
+        "run_long",
+        "strength"
+      ],
+      "Tue": [
+        "bike_quality",
+        "swim_endurance"
+      ],
+      "Wed": [],
+      "Thu": [
+        "swim_threshold",
+        "strength_2"
+      ],
+      "Fri": [],
+      "Sat": [],
+      "Sun": [
+        "bike_long",
+        "run_easy"
+      ]
+    }
   },
-
+  "week_template": {
+    "Mon": [
+      "swim_endurance",
+      "run_long"
+    ],
+    "Tue": [
+      "bike_quality",
+      "strength"
+    ],
+    "Wed": [
+      "run_quality",
+      "swim_technique"
+    ],
+    "Thu": [
+      "swim_threshold",
+      "strength_2"
+    ],
+    "Fri": [
+      "bike_endurance",
+      "run_easy"
+    ],
+    "Sat": [],
+    "Sun": [
+      "bike_long",
+      "run_brick"
+    ]
+  },
   "blocked_dates": [],
-  "blocked_dates_note": "Add trips / exam weeks here as {\"from\": \"YYYY-MM-DD\", \"to\": \"YYYY-MM-DD\", \"mode\": \"off\" | \"run_only\" | \"no_pool\", \"label\": \"...\"}. The plan reshapes around them."
+  "blocked_dates_note": "Add trips / exam weeks here as {\"from\": \"YYYY-MM-DD\", \"to\": \"YYYY-MM-DD\", \"mode\": \"off\" | \"run_only\" | \"no_pool\", \"label\": \"...\"}. The plan reshapes around them.",
+  "volume_note": "Hours are swim/bike/run only. Strength (2 × 40–45 min through Feb, then 1 × 30 min) is on top."
 }

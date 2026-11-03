@@ -157,6 +157,20 @@ def fetch_garmin(state, today, log, history_days=60):
         got = garmin_wellness_day(g, d, log)
         if got:
             well.setdefault(d.isoformat(), {}).update(got)
+    try:
+        bc = g.get_body_composition(since.isoformat(), today.isoformat()) or {}
+        n = 0
+        for e in bc.get("dateWeightList") or []:
+            day = e.get("calendarDate")
+            if not day and e.get("date"):
+                day = dt.datetime.fromtimestamp(e["date"] / 1000).date().isoformat()
+            w = _num(e.get("weight"))
+            if day and w:
+                well.setdefault(day[:10], {})["weight_kg"] = round(w / 1000 if w > 1000 else w, 2)
+                n += 1
+        log(f"Garmin: {n} weigh-ins")
+    except Exception as e:
+        log(f"Garmin weight unavailable ({type(e).__name__})")
     phys = garmin_physiology(g, log)
     state["last_garmin_sync"] = dt.datetime.now().isoformat(timespec="minutes")
     return acts, phys

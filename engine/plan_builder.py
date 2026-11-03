@@ -24,11 +24,15 @@ ROLE_WEIGHTS = {
     "run_quality":    (45, 55),
     "run_easy":       (25, 30),
     "run_brick":      (0, 25),
-    "strength":       (35, 30),
+    "strength":       (40, 30),
+    "strength_2":     (35, 25),
 }
 
 ROLE_SPORT = {r: r.split("_")[0] for r in ROLE_WEIGHTS}
 ROLE_SPORT["strength"] = "strength"
+ROLE_SPORT["strength_2"] = "strength"
+
+STRENGTH_MIN = {"strength": (45, 30), "strength_2": (40, 30)}   # (base/build1, later)
 
 KEY_ROLES = {"bike_quality", "run_quality", "swim_threshold", "bike_long", "run_long"}
 
@@ -39,6 +43,7 @@ IF_BY_KIND = {
 }
 
 PHASE_INFO = {
+    "foundation": ("Foundation", "3–4 days a week: aerobic base, strength, skills"),
     "base":   ("Base", "Aerobic engine, technique, strength foundation"),
     "build1": ("Build 1", "Threshold work, longer long sessions"),
     "build2": ("Build 2", "Race-specific: race pace, bricks, open water"),
@@ -280,7 +285,9 @@ class Lib:
         steps = [("Warm up", f"15 min easy · {self.z.run('Z2')}"), ("Main", main), ("Cool down", "10 min easy")]
         return dict(title=title, kind=kind, steps=steps, summary=main.split(" · ")[0])
 
-    def run_long(self, ph, m, w):
+    def run_long(self, ph, m, w, test=False):
+        if test:
+            return self.run_quality(ph, m, w, test=True)
         if ph in ("base",):
             main = f"{m} min · {self.z.run('Z2')}"
         elif ph == "build1":
@@ -302,18 +309,32 @@ class Lib:
                                                                          ("Run", main)], summary="Run off the bike")
 
     def strength(self, ph, m, w):
+        """Session A: lower body / posterior chain. Heavy-ish, protects knees, hips and Achilles."""
         if ph == "base":
-            body = ("3×10: goblet squat, Romanian deadlift, split squat, push-ups, bent-over row. "
-                    "Core: 3×40s plank, side plank, dead bugs. Calf raises 3×15.")
-            title = "Foundation Strength"
+            body = ("Goblet or back squat 4×8 · Romanian deadlift 4×8 · Bulgarian split squat 3×8/leg · "
+                    "Hip thrust 3×10 · Calf raises 3×15 (straight + bent knee) · Dead bugs 3×10")
+            title = "Strength A: Legs & Posterior Chain"
         elif ph == "build1":
-            body = ("3×6 heavier: back squat or trap-bar deadlift, step-ups, pull-ups / rows. "
-                    "Plyo: 3×5 box jumps. Core circuit 10 min.")
-            title = "Strength & Power"
+            body = ("Back squat or trap-bar deadlift 4×5 (heavy, 2 reps in reserve) · Step-ups 3×6/leg · "
+                    "Single-leg RDL 3×8 · Box jumps 4×4 · Calf raises 3×12 · Pallof press 3×10")
+            title = "Strength A: Heavy Legs & Power"
         else:
-            body = "2×8 moderate: squats, single-leg RDL, rows. Core 8 min. Stay fresh."
-            title = "Maintenance Strength"
-        return dict(title=f"{m} min {title}", kind="strength", steps=[("Session", body)], summary=title)
+            body = "Squat 3×5 moderate · Single-leg RDL 2×8 · Pogo hops 3×15 · Core 8 min. Leave fresh."
+            title = "Strength: Maintenance"
+        return dict(title=title, kind="strength", steps=[("Warm up", "5 min easy + mobility (hips, T-spine, ankles)"),
+                                                          ("Session", body)], summary=title.split(": ")[-1])
+
+    def strength_2(self, ph, m, w):
+        """Session B: upper body, core and single-leg stability. Swim power + posture on the bike."""
+        if ph == "build1":
+            body = ("Pull-ups or lat pulldown 4×6 · Push-ups 4×12 · Single-arm row 3×10 · "
+                    "Rear-foot-elevated split squat 3×8 · Copenhagen plank 3×20s · Farmer carry 3×40m")
+        else:
+            body = ("Lat pulldown or band pull-down 3×10 · Push-ups 3×max-2 · Bent-over row 3×10 · "
+                    "Lateral lunge 3×8 · Side plank 3×30s · Bird dog 3×10 · Face pulls 3×15")
+        return dict(title="Strength B: Upper Body & Core", kind="strength",
+                    steps=[("Warm up", "5 min easy + band shoulder work"), ("Session", body)],
+                    summary="Upper body & core")
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +383,9 @@ def _blocked(cfg, day):
     return None
 
 
+TESTABLE = {"bike": ("bike_quality",), "swim": ("swim_threshold",), "run": ("run_quality", "run_long")}
+
+
 def build_plan(cfg, baselines=None):
     b = dict(cfg["baselines"])
     if baselines:
@@ -370,31 +394,53 @@ def build_plan(cfg, baselines=None):
                   b.get("run_lthr_bpm"), b.get("bike_lthr_bpm"))
     lib = Lib(zones)
 
-    start = dt.date.fromisoformat(cfg["plan_start"])
+    plan_start = dt.date.fromisoformat(cfg["plan_start"])
+    start = plan_start - dt.timedelta(days=plan_start.weekday())   # Monday of the first week
     race_date = dt.date.fromisoformat(cfg["race"]["date"])
     race_week_start = race_date - dt.timedelta(days=race_date.weekday())
     n = (race_week_start - start).days // 7 + 1
-    layout = layout_weeks(n)
 
-    train_idx = [i for i, (ph, rec, _) in enumerate(layout) if not rec and ph not in ("taper", "race")]
+    # Optional low-frequency block at the start (e.g. 3–4 days a week through a busy period)
+    lf = cfg.get("low_frequency") or {}
+    lf_until = dt.date.fromisoformat(lf["until"]) if lf.get("until") else None
+    n_lf = 0
+    if lf_until:
+        n_lf = sum(1 for i in range(n) if start + dt.timedelta(days=7 * i) <= lf_until)
+    main = layout_weeks(n - n_lf)
+    if n_lf:
+        main[0] = (main[0][0], main[0][1], False)   # initial tests happen in the foundation block instead
+    rec_pos = set(lf.get("recovery_weeks", []))
+    layout = [("foundation", (k + 1) in rec_pos, False) for k in range(n_lf)] + main
+
+    train_idx = [i for i, (ph, rec, _) in enumerate(layout)
+                 if not rec and ph not in ("taper", "race", "foundation")]
     progress = {i: (k / max(1, len(train_idx) - 1)) for k, i in enumerate(train_idx)}
+    lf_h0, lf_h1 = (lf.get("hours") or [5, 6])
 
     v0, v1 = cfg["volume"]["start_hours"], cfg["volume"]["peak_hours"]
     weeks, sessions = [], []
+    tested = set()
     last_p = 0.0
     for i, (ph, rec, test) in enumerate(layout):
         wstart = start + dt.timedelta(days=7 * i)
-        p = progress.get(i, last_p)
-        if i in progress:
-            last_p = p
-        shaped = math.sqrt(p)  # rise quicker early, flatten toward peak
-        hours = v0 + (v1 - v0) * shaped
+        lib_ph = "base" if ph == "foundation" else ph
+        if ph == "foundation":
+            shaped = 0.0
+            hours = lf_h0 + (lf_h1 - lf_h0) * (i / max(1, n_lf - 1))
+            template = lf.get("template") or cfg["week_template"]
+        else:
+            p = progress.get(i, last_p)
+            if i in progress:
+                last_p = p
+            shaped = math.sqrt(p)  # rise quicker early, flatten toward peak
+            hours = v0 + (v1 - v0) * shaped
+            if ph == "taper":
+                hours = v1 * 0.7
+            template = cfg["week_template"]
         if rec:
-            hours *= 0.65
-        if ph == "taper":
-            hours = v1 * 0.7
+            hours *= 0.7
         if i == 0:
-            hours *= 0.85
+            hours *= 0.9
 
         name, focus = PHASE_INFO[ph]
         week = dict(index=i + 1, start=wstart.isoformat(), end=(wstart + dt.timedelta(days=6)).isoformat(),
@@ -406,26 +452,42 @@ def build_plan(cfg, baselines=None):
         else:
             roles = []
             for di, day in enumerate(DAYS):
-                for role in cfg["week_template"].get(day, []):
-                    if role == "run_brick" and ph == "base":
+                if wstart + dt.timedelta(days=di) < plan_start:
+                    continue
+                for role in template.get(day, []):
+                    if role == "run_brick" and lib_ph == "base":
                         continue
-                    if role == "strength" and ph in ("peak", "taper"):
+                    if role == "strength_2" and ph in ("build2", "peak", "taper"):
+                        continue
+                    if role == "strength" and ph == "taper":
                         continue
                     roles.append((di, role))
-            weights = {r: ROLE_WEIGHTS[r][0] + (ROLE_WEIGHTS[r][1] - ROLE_WEIGHTS[r][0]) * shaped for _, r in roles}
-            total = sum(weights[r] for _, r in roles) or 1
+            # Strength has fixed durations; endurance sessions share the week's hours.
+            fixed = {r: STRENGTH_MIN[r][0 if lib_ph in ("base", "build1") else 1] for _, r in roles if r in STRENGTH_MIN}
+            weights = {r: ROLE_WEIGHTS[r][0] + (ROLE_WEIGHTS[r][1] - ROLE_WEIGHTS[r][0]) * shaped
+                       for _, r in roles if r not in STRENGTH_MIN}
+            total = sum(weights[r] for _, r in roles if r in weights) or 1
             scale = hours * 60 / total
             wk_sessions = []
             for di, role in roles:
                 day = wstart + dt.timedelta(days=di)
-                mins = r5(weights[role] * scale)
-                is_test = test and role in ("bike_quality", "run_quality", "swim_threshold")
+                sport = ROLE_SPORT[role]
+                mins = fixed[role] if role in fixed else r5(weights[role] * scale)
+                if role == "run_brick":
+                    mins = max(10, mins)
+                initial = (day - plan_start).days < 14 and sport not in tested and role in TESTABLE.get(sport, ())
+                retest = test and role in ("bike_quality", "run_quality", "swim_threshold")
+                is_test = initial or retest
+                if initial:
+                    tested.add(sport)
                 fn = getattr(lib, role)
-                spec = fn(ph, mins, i, test=True) if is_test else fn(ph, mins, i)
+                spec = fn(lib_ph, mins, i, test=True) if is_test else fn(lib_ph, mins, i)
                 mins = spec.pop("minutes", mins)
                 steps = [{"label": a, "detail": d} for a, d in spec.pop("steps")]
-                wk_sessions.append(dict(date=day.isoformat(), sport=ROLE_SPORT[role], role=role, duration_min=mins,
+                wk_sessions.append(dict(date=day.isoformat(), sport=sport, role=role, duration_min=mins,
                                         steps=steps, key=(role in KEY_ROLES and not rec) or is_test, test=is_test, **spec))
+            if any(s["test"] for s in wk_sessions):
+                week["test_week"] = True
 
         # blocked dates
         kept = []
@@ -444,6 +506,7 @@ def build_plan(cfg, baselines=None):
             s.setdefault("test", False)
         week["planned_tss"] = sum(s["tss"] for s in kept)
         week["planned_hours"] = round(sum(s["duration_min"] for s in kept) / 60, 1)
+        week["training_days"] = len({s["date"] for s in kept})
         weeks.append(week)
         sessions.extend(kept)
 

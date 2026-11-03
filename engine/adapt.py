@@ -319,7 +319,7 @@ class Engine:
             factor, reason = 0.9, f"Fitness ramped {ramp:.1f}/week — too steep to hold safely. Taking 10% off."
         elif low_hrv >= 4:
             factor, reason = 0.85, f"HRV was low or unbalanced {low_hrv} of the last 7 days. Taking 15% off this week."
-        elif (not week["recovery"] and len(comps) == 2 and all(c >= 0.95 for _, c in comps)
+        elif (not week["recovery"] and week["phase"] != "foundation" and len(comps) == 2 and all(c >= 0.95 for _, c in comps)
               and low_hrv == 0 and ramp < 6):
             factor, reason = 1.05, "Two solid weeks (95%+ done) and recovery is holding. Nudging this week up 5%."
         if factor == 1.0:

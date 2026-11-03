@@ -139,6 +139,9 @@ def main(argv=None):
         readiness=res["readiness"],
         form=res["form"],
         wellness=wellness,
+        body=cfg.get("body"),
+        weights=[{"date": k, "kg": v["weight_kg"]} for k, v in sorted(state.get("wellness", {}).items())
+                 if v.get("weight_kg") and k >= (dt.date.fromisoformat(cfg["plan_start"]) - dt.timedelta(days=60)).isoformat()],
         adjustments=list(reversed(state.get("adjustments", [])))[:60],
         sync=status,
         log=logs[-30:],

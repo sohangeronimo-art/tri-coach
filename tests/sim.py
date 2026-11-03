@@ -55,15 +55,19 @@ def simulate(today, miss_ids=(), seed=4):
         well[day.isoformat()] = dict(hrv=round(hrv), hrv_low=57, hrv_high=72, hrv_status="BALANCED",
                                      sleep_score=random.randint(70, 88), sleep_h=round(random.uniform(6.8, 8.3), 1),
                                      rhr=random.randint(47, 51), body_battery=random.randint(70, 95))
+    for k in range(60, -1, -1):
+        day = today - dt.timedelta(days=k)
+        if random.random() < .6:
+            well[day.isoformat()]["weight_kg"] = round(79.4 - (60 - k) * 0.045 + random.gauss(0, .35), 1)
     # rough night
     well[today.isoformat()].update(hrv=49, hrv_status="LOW", sleep_score=46, sleep_h=5.4, rhr=56, body_battery=48)
     return cfg, acts, well
 
 
 def main():
-    today = dt.date.fromisoformat(sys.argv[1] if len(sys.argv) > 1 else "2026-11-25")
+    today = dt.date.fromisoformat(sys.argv[1] if len(sys.argv) > 1 else "2026-12-17")
     out = sys.argv[2] if len(sys.argv) > 2 else None
-    cfg, acts, well = simulate(today, miss_ids={"2026-11-24-bike_quality"})
+    cfg, acts, well = simulate(today, miss_ids={"2026-12-15-bike_quality"})
     os.environ.setdefault("APP_PASSPHRASE", "demo-passphrase")
     tmp = tempfile.mkdtemp()
     state_path = os.path.join(tmp, "state.enc")
