@@ -131,9 +131,7 @@ def garmin_physiology(g, log):
             pace = 1000 / mps
             if 180 < pace < 480:
                 found["run_threshold_pace_s_per_km"] = round(pace)
-        pw = (lt.get("power") or {}).get("functionalThresholdPower")
-        if pw:
-            found["bike_ftp_w"] = int(pw)
+        # NB: lt["power"] is RUNNING power at threshold, not cycling FTP, so it's ignored.
     except Exception as e:
         log(f"Garmin threshold lookup unavailable ({type(e).__name__})")
     try:

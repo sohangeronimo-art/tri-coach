@@ -111,6 +111,8 @@ def main(argv=None):
                 reason="Garmin has new threshold numbers: " + ", ".join(f"{k.replace('_', ' ')} {v}" for k, v in changed.items())
                        + ". All future targets now use them."))
         state["physiology"] = {**prev, **phys}
+    # Cycling FTP only comes from your own test / manual entry (Garmin's LT power is running power).
+    state.get("physiology", {}).pop("bike_ftp_w", None)
     baselines = {**{k: v for k, v in state.get("physiology", {}).items()},
                  **{k: v for k, v in state.get("manual_baselines", {}).items()}}
 
