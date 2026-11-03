@@ -19,6 +19,17 @@ from engine.plan_builder import build_plan  # noqa: E402
 from engine import run as runner  # noqa: E402
 
 
+def _zones(kind, mins):
+    sec = mins * 60
+    mix = {"easy": [.35, .55, .08, .02, 0], "endurance": [.25, .6, .12, .03, 0], "long": [.2, .62, .14, .04, 0],
+           "technique": [.4, .5, .1, 0, 0], "tempo": [.15, .35, .4, .1, 0], "sweetspot": [.15, .3, .3, .25, 0],
+           "threshold": [.15, .3, .15, .35, .05], "vo2": [.15, .3, .15, .2, .2], "test": [.15, .25, .15, .35, .1]}
+    m = mix.get(kind, [.2, .5, .2, .1, 0])
+    m = [max(0, v + random.uniform(-.04, .04)) for v in m]
+    t = sum(m)
+    return [round(sec * v / t) for v in m]
+
+
 def simulate(today, miss_ids=(), seed=4):
     random.seed(seed)
     cfg = json.load(open("config/athlete.json"))
@@ -45,7 +56,12 @@ def simulate(today, miss_ids=(), seed=4):
         dist = {"swim": mins / 2.0 * 100, "bike": mins / 60 * 28000, "run": mins * 60 / 340 * 1000}.get(sport)
         acts.append(dict(id=f"g{len(acts)}", source="garmin", name=s["title"], sport=sport,
                          start=f"{s['date']} 06:{random.randint(0, 50):02d}:00", date=s["date"],
-                         duration_s=mins * 60, distance_m=dist, avg_hr=random.randint(128, 158)))
+                         duration_s=mins * 60, distance_m=dist, avg_hr=random.randint(128, 158),
+                         cadence=random.randint(158, 176) if sport == "run" else (random.randint(82, 94) if sport == "bike" else None),
+                         te_aero=round(random.uniform(2.2, 4.1), 1) if sport != "strength" else None,
+                         te_anaer=round(random.uniform(0, 2.2), 1) if sport != "strength" else None,
+                         zones=_zones(s["kind"], mins) if sport != "strength" else None,
+                         elev_m=random.randint(20, 400) if sport in ("run", "bike") else None))
         # Strava duplicate of a few, to check de-dupe
         if random.random() < .3:
             acts.append(dict(acts[-1], id=f"s{len(acts)}", source="strava"))

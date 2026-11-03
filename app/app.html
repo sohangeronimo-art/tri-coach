@@ -102,6 +102,38 @@ section{display:flex;flex-direction:column;gap:10px}
 .sess.is-done .sess-title{color:var(--muted)}
 .empty{color:var(--muted);font-size:14px;padding:14px;background:var(--surface);border-radius:var(--r)}
 
+/* recent activities */
+.ov{display:flex;flex-direction:column;gap:12px}
+.ov-tot{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.ov-tot div{min-width:0}
+.ov-tot b{font-family:var(--display);font-size:24px;font-weight:800;display:block;line-height:1.05}
+.ov-tot span{font-size:11.5px;color:var(--muted)}
+.zbar{display:flex;height:10px;border-radius:99px;overflow:hidden;background:var(--surface-2)}
+.zbar i{display:block;height:100%}
+.zkey{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.zkey span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:5px}
+.ov-notes{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none;font-size:13.5px}
+.ov-notes li{padding-left:14px;position:relative}
+.ov-notes li::before{content:"";position:absolute;left:0;top:.6em;width:6px;height:2px;background:var(--accent)}
+.act{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;width:100%;
+  background:var(--surface);border-radius:var(--r);padding:11px 12px 11px 10px}
+.act-name{font-weight:600;font-size:14.5px;display:block;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act-meta{font-size:12.5px;color:var(--muted);display:block;margin-top:2px}
+.stim{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:6px;white-space:nowrap;
+  background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
+.sgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.sgrid div{background:var(--surface);border-radius:12px;padding:9px 11px;min-width:0}
+.sgrid b{font-family:var(--mono);font-size:14.5px;font-weight:500;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sgrid span{font-size:11.5px;color:var(--muted)}
+.zrows{display:flex;flex-direction:column;gap:5px;background:var(--surface);border-radius:var(--r);padding:12px 14px}
+.zrow{display:grid;grid-template-columns:28px minmax(0,1fr) 52px;gap:8px;align-items:center;font-size:12.5px}
+.zrow .t{height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.zrow .t i{display:block;height:100%;background:var(--c)}
+.zrow b{font-family:var(--mono);font-weight:500}
+.zrow span:last-child{text-align:right;font-family:var(--mono);color:var(--muted)}
+.ai{background:var(--accent-soft);border-radius:var(--r);padding:12px 14px;font-size:14.5px}
+.ai .label{color:var(--accent);display:block;margin-bottom:4px}
+.what{font-size:14.5px}
 /* changes */
 .changes{display:flex;flex-direction:column;gap:0;background:var(--surface);border-radius:var(--r);padding:4px 14px}
 .chg{padding:11px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
@@ -190,6 +222,7 @@ td:first-child{width:70px;font-family:var(--mono);font-weight:500}
 @keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion: reduce){.sheet{animation:none}}
 .grab{width:40px;height:5px;border-radius:9px;background:var(--line);margin:4px auto 0}
+.sheet:focus{outline:none}
 .sheet h3{font-family:var(--display);font-size:30px;font-weight:800;line-height:1.05}
 .steps{display:flex;flex-direction:column;gap:0;background:var(--surface);border-radius:var(--r);padding:2px 14px}
 .step{padding:11px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:86px minmax(0,1fr);gap:10px}
@@ -409,12 +442,64 @@ function viewToday(){
   return `${planNote}
     ${ready}
     <section><div class="sec-head"><h2>${sel === t ? "Today" : fmtDay(sel)}</h2><span class="aside">${sel === t ? fmtDay(t) : ""}</span></div>${dayBody}</section>
+    ${recentSection()}
     ${chg}
     <section><div class="sec-head"><h2>Week ${w.index}</h2><span class="aside">${esc(w.phase_name)}${w.recovery ? " · recovery" : ""}</span></div>
       <div class="card"><div class="ring-row">${rings}</div>
       <div class="bar"><i style="width:${Math.min(100, doneH / plannedH * 100)}%"></i></div>
       <div class="bar-cap num"><span>${doneH}h done</span><span>${plannedH}h planned</span></div></div>
       ${stats ? `<div class="stats">${stats}</div>` : ""}</section>`;
+}
+
+const STIM_C = {recovery:"var(--swim)", base:"var(--swim)", tempo:"var(--bike)", threshold:"var(--run)", vo2:"var(--bad)", anaerobic:"var(--bad)", strength:"var(--strength)"};
+const ZC = ["var(--swim)","var(--swim)","var(--bike)","var(--run)","var(--bad)"];
+const ago = dateISO => { const d = Math.round((pd(effToday()) - pd(dateISO)) / 864e5); return d <= 0 ? "Today" : d === 1 ? "Yesterday" : `${d} days ago` };
+
+function recentSection(){
+  const R = D.recent;
+  if (!R || !R.activities?.length) return "";
+  const T = R.totals, O = R.overview || {};
+  const z = O.zones14, zt = z ? z.reduce((a, b) => a + b, 0) : 0;
+  const seg = z ? [[z[0] + z[1], "var(--swim)", "Easy"], [z[2], "var(--bike)", "Moderate"], [z[3] + z[4], "var(--run)", "Hard"]] : [];
+  return `<section><div class="sec-head"><h2>Last 5 activities</h2><span class="aside">since ${fmtDay(T.since)}</span></div>
+    <div class="card ov">
+      <div class="ov-tot"><div><b class="num">${esc(T.time)}</b><span>time</span></div><div><b class="num">${T.tss}</b><span>TSS</span></div>
+        <div><b class="num">${T.km}</b><span>km ride + run</span></div><div><b class="num">${T.swim_m ? (T.swim_m / 1000).toFixed(1) : "0"}</b><span>km swim</span></div></div>
+      ${z ? `<div><div class="label" style="margin-bottom:6px">Intensity, last 2 weeks</div>
+        <div class="zbar">${seg.map(([v, c]) => `<i style="width:${v / zt * 100}%;background:${c}"></i>`).join("")}</div>
+        <div class="zkey" style="margin-top:6px">${seg.map(([v, c, l]) => `<span style="--c:${c}">${l} ${Math.round(v / zt * 100)}%</span>`).join("")}<span style="--c:transparent">target ~80% easy</span></div></div>` : ""}
+      ${O.notes?.length ? `<ul class="ov-notes">${O.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+    </div>
+    <div class="sess-list">${R.activities.map(a => `<button class="act" data-aid="${esc(a.id)}">
+      <span class="glyph" style="--c:${sportVar(a.sport === "other" ? "strength" : a.sport)}">${ICON[a.sport] || ICON.strength}</span>
+      <span style="min-width:0"><span class="act-name">${esc(a.name)}</span>
+        <span class="act-meta">${ago(a.date)} · ${esc(a.stats.filter(s => ["Distance","Time","Pace","Speed","Power"].includes(s.label)).slice(0, 3).map(s => s.value).join(" · "))}</span></span>
+      <span class="stim" style="--c:${STIM_C[a.stimulus] || "var(--muted)"}">${esc(a.stimulus_name)}</span></button>`).join("")}</div>
+  </section>`;
+}
+
+function activitySheet(id){
+  const a = D.recent.activities.find(x => x.id === id); if (!a) return;
+  const el = document.createElement("div");
+  el.className = "scrim";
+  const z = a.zones, zt = z ? z.reduce((p, q) => p + q, 0) : 0;
+  const rec = a.recovery_hours;
+  el.innerHTML = `<div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-label="${esc(a.name)}"><div class="grab"></div>
+    <div><span class="label" style="color:${sportVar(a.sport === "other" ? "strength" : a.sport)}">${esc(a.sport)} · ${fmtDay(a.date)}${a.start ? " · " + esc(a.start.slice(11, 16)) : ""}</span>
+      <h3>${esc(a.name)}</h3></div>
+    <div><span class="stim" style="--c:${STIM_C[a.stimulus] || "var(--muted)"}">${esc(a.stimulus_name)}</span>
+      <p class="what" style="margin:8px 0 0">${esc(a.what_it_did)}</p>
+      <p class="explain" style="margin:4px 0 0;font-size:12px">Classified from ${esc(a.stimulus_source)}.</p></div>
+    ${a.ai ? `<div class="ai"><span class="label">Claude's read</span>${esc(a.ai)}</div>` : ""}
+    <div class="sgrid">${a.stats.map(s => `<div><b>${esc(s.value)}</b><span>${esc(s.label)}</span></div>`).join("")}</div>
+    ${z && zt ? `<div class="zrows">${z.map((v, i) => `<div class="zrow" style="--c:${ZC[i]}"><b>Z${i + 1}</b><span class="t"><i style="width:${v / zt * 100}%"></i></span><span>${hm(v / 60)}</span></div>`).join("")}</div>` : ""}
+    ${a.notes.length ? `<div class="changes">${a.notes.map(n => `<div class="chg"><span style="color:var(--ink)">${esc(n)}</span></div>`).join("")}</div>` : ""}
+    <div class="donebox"><b>Recovery:</b> ready for hard work again in about ${rec}h${rec <= 18 ? ". Fine to train normally tomorrow." : "."}</div>
+    <button class="btn" data-close>Close</button></div>`;
+  el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-close]")) el.remove() });
+  document.addEventListener("keydown", function k(e){ if (e.key === "Escape"){ el.remove(); document.removeEventListener("keydown", k) } });
+  document.body.appendChild(el);
+  $(".sheet", el).focus({preventScroll:true});
 }
 
 const fmt1 = v => v == null ? "–" : Math.round(v);
@@ -592,7 +677,8 @@ function viewZones(){
     <section><div class="sec-head"><h2>Bike</h2></div><div class="card">${tbl(z.bike)}</div></section>
     <section><div class="sec-head"><h2>Run</h2><span class="aside">per km</span></div><div class="card">${tbl(z.run)}</div></section>
     <section><div class="sec-head"><h2>Sync</h2><span class="aside">updated ${esc((D.generated_at || "").slice(0, 16).replace("T", " "))}</span></div>
-      <div class="card"><dl class="kv" style="margin:0">${srow("Garmin", sync.garmin)}${srow("Strava", sync.strava)}</dl></div>
+      <div class="card"><dl class="kv" style="margin:0">${srow("Garmin", sync.garmin)}${srow("Strava", sync.strava)}
+        <dt>Claude activity reads</dt><dd style="color:${D.recent?.ai_enabled ? "var(--good)" : "var(--muted)"}">${D.recent?.ai_enabled ? "On" : "Off"}</dd></dl></div>
       <p class="explain" style="margin:0">Syncs around 6am, 9am and 8pm. To sync now, open the repo in GitHub → Actions → Sync &amp; adapt → Run workflow.</p>
       ${window.__DEMO__ ? "" : `<button class="btn" id="forget">Forget passphrase on this phone</button>`}</section>`;
 }
@@ -601,7 +687,7 @@ function sheet(id){
   const s = D.sessions.find(x => x.id === id); if (!s) return;
   const el = document.createElement("div");
   el.className = "scrim";
-  el.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(s.title)}"><div class="grab"></div>
+  el.innerHTML = `<div class="sheet" tabindex="-1" role="dialog" aria-modal="true" aria-label="${esc(s.title)}"><div class="grab"></div>
     <div><span class="label" style="color:${sportVar(s.sport)}">${esc(s.sport)} · ${fmtDay(s.date)}</span><h3>${esc(s.title)}</h3>
       <div class="sess-meta" style="margin-top:4px">${esc(sessMeta(s))} · ~${s.tss} TSS</div></div>
     ${s.status === "done" || s.status === "partial" ? `<div class="donebox"><b>Done</b> · ${hm(s.completed.minutes)}${s.completed.distance_m ? " · " + km(s.completed.distance_m) : ""}${s.completed.avg_hr ? " · " + Math.round(s.completed.avg_hr) + "bpm avg" : ""}${s.completed.tss ? " · " + s.completed.tss + " TSS" : ""}<div class="explain">${esc(s.completed.name || "")}</div></div>` : ""}
@@ -612,7 +698,7 @@ function sheet(id){
   el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-close]")) el.remove() });
   document.addEventListener("keydown", function k(e){ if (e.key === "Escape"){ el.remove(); document.removeEventListener("keydown", k) } });
   document.body.appendChild(el);
-  $("[data-close]", el).focus();
+  $(".sheet", el).focus({preventScroll:true});
 }
 
 function render(){
@@ -630,6 +716,7 @@ function start(){
   document.addEventListener("click", e => {
     const d = e.target.closest("[data-day]"); if (d){ selDay = d.dataset.day; render(); return }
     const s = e.target.closest("[data-sid]"); if (s){ sheet(s.dataset.sid); return }
+    const ac = e.target.closest("[data-aid]"); if (ac){ activitySheet(ac.dataset.aid); return }
     const w = e.target.closest("[data-wk]"); if (w){ weekIdx = Math.max(0, Math.min(D.weeks.length - 1, weekIdx + +w.dataset.wk)); render(); return }
     const g = e.target.closest("[data-wkgo]"); if (g){ weekIdx = +g.dataset.wkgo; render(); return }
     if (e.target.closest("#forget")){ store.del("brick-pass"); location.reload() }

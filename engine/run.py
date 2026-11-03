@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from . import crypto
 from .adapt import Engine
+from . import insights
 from .plan_builder import build_plan
 from .sources import fetch_garmin, fetch_strava, merge_activities, strava_token
 
@@ -119,6 +120,12 @@ def main(argv=None):
     base = build_plan(cfg, baselines)
     res = Engine(base, state, cfg, today).run()
 
+    try:
+        recent = insights.build(state, res["sessions"], base["baselines"], cfg, today, res["history"], log)
+    except Exception:
+        traceback.print_exc()
+        recent = None
+
     race_day = dt.date.fromisoformat(cfg["race"]["date"])
     wellness = {k: v for k, v in sorted(state.get("wellness", {}).items()) if k >= (today - dt.timedelta(days=42)).isoformat()}
     bundle = dict(
@@ -140,6 +147,7 @@ def main(argv=None):
         form=res["form"],
         wellness=wellness,
         body=cfg.get("body"),
+        recent=recent,
         weights=[{"date": k, "kg": v["weight_kg"]} for k, v in sorted(state.get("wellness", {}).items())
                  if v.get("weight_kg") and k >= (dt.date.fromisoformat(cfg["plan_start"]) - dt.timedelta(days=60)).isoformat()],
         adjustments=list(reversed(state.get("adjustments", [])))[:60],

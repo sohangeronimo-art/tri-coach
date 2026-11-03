@@ -86,8 +86,40 @@ def garmin_activities(g, since, until):
             distance_m=_num(a.get("distance")), avg_hr=_num(a.get("averageHR")), max_hr=_num(a.get("maxHR")),
             avg_power=_num(a.get("avgPower")), np=_num(a.get("normPower")),
             tss_device=_num(a.get("trainingStressScore")),
+            te_aero=_num(a.get("aerobicTrainingEffect")), te_anaer=_num(a.get("anaerobicTrainingEffect")),
+            te_label=a.get("trainingEffectLabel"), load=_num(a.get("activityTrainingLoad")),
+            elev_m=_num(a.get("elevationGain")), calories=_num(a.get("calories")),
+            cadence=_num(a.get("averageRunningCadenceInStepsPerMinute") or a.get("averageBikingCadenceInRevPerMinute")),
+            swolf=_num(a.get("averageSwolf")), max_power=_num(a.get("maxPower")),
+            vo2max=_num(a.get("vO2MaxValue")),
+            zones=_zones_from_summary(a),
         ))
     return out
+
+
+def _zones_from_summary(a):
+    z = [_num(a.get(f"hrTimeInZone_{i}")) for i in range(1, 6)]
+    return [round(v or 0) for v in z] if any(z) else None
+
+
+def garmin_zones(g, acts, log, limit=8):
+    """Fill HR time-in-zone for the most recent activities that don't have it."""
+    n = 0
+    for a in sorted(acts, key=lambda a: a["start"], reverse=True)[:limit]:
+        if a.get("zones") or a.get("source") != "garmin" or not a.get("avg_hr"):
+            continue
+        try:
+            rows = g.get_activity_hr_in_timezones(a["id"][1:]) or []
+            rows = sorted(rows, key=lambda r: r.get("zoneNumber", 0))
+            secs = [round(_num(r.get("secsInZone")) or 0) for r in rows][:5]
+            if any(secs):
+                a["zones"] = secs + [0] * (5 - len(secs))
+                a["zone_floor_bpm"] = [_num(r.get("zoneLowBoundary")) for r in rows][:5]
+                n += 1
+        except Exception as e:
+            log(f"Garmin zones {a['id']}: {type(e).__name__}")
+    if n:
+        log(f"Garmin: HR zones for {n} activities")
 
 
 def garmin_wellness_day(g, day, log):
@@ -154,9 +186,13 @@ def garmin_physiology(g, log):
 def fetch_garmin(state, today, log, history_days=60):
     g = garmin_client(state, log)
     last = state.get("last_garmin_sync")
+    if state.get("schema", 1) < 2:      # new activity fields: refetch history once
+        last = None
+        state["schema"] = 2
     since = today - dt.timedelta(days=history_days if not last else 10)
     acts = garmin_activities(g, since, today)
     log(f"Garmin: {len(acts)} activities since {since}")
+    garmin_zones(g, acts, log)
 
     well = state.setdefault("wellness", {})
     days = history_days if not last else 4
@@ -239,6 +275,9 @@ def fetch_strava(state, today, log, history_days=60):
                 distance_m=_num(a.get("distance")), avg_hr=_num(a.get("average_heartrate")),
                 max_hr=_num(a.get("max_heartrate")), avg_power=_num(a.get("average_watts")),
                 np=_num(a.get("weighted_average_watts")), tss_device=None,
+                elev_m=_num(a.get("total_elevation_gain")),
+                cadence=(_num(a.get("average_cadence")) or 0) * (2 if a.get("sport_type") in ("Run", "TrailRun") else 1) or None,
+                max_power=_num(a.get("max_watts")),
             ))
         page += 1
     state["last_strava_sync"] = dt.datetime.now().isoformat(timespec="minutes")
@@ -255,7 +294,8 @@ def merge_activities(existing, new):
     (same sport, start within 20 minutes). Garmin wins because it carries more detail."""
     by_id = {a["id"]: a for a in existing}
     for a in new:
-        by_id[a["id"]] = {**by_id.get(a["id"], {}), **a}
+        prev = by_id.get(a["id"], {})
+        by_id[a["id"]] = {**prev, **{k: v for k, v in a.items() if v is not None or k not in prev}}
     acts = sorted(by_id.values(), key=lambda a: a["start"])
 
     def ts(a):
