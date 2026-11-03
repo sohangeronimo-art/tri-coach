@@ -56,10 +56,18 @@ def garmin_client(state, log):
         g = Garmin(email, pw)
         g.login()
         log("Garmin: signed in with password")
-    try:
-        state["tokens"]["garmin"] = g.garth.dumps()
-    except Exception:
-        pass
+    saved = False
+    for attr in ("garth", "client"):
+        obj = getattr(g, attr, None)
+        if obj is not None and hasattr(obj, "dumps"):
+            try:
+                state["tokens"]["garmin"] = obj.dumps()
+                saved = True
+                break
+            except Exception as e:
+                log(f"Garmin: couldn't save session via {attr} ({type(e).__name__})")
+    if not saved:
+        log("Garmin: session not saved; will sign in with password next run")
     return g
 
 
