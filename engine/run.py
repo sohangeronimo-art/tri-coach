@@ -47,7 +47,7 @@ def summarise_weeks(weeks, sessions, extras):
     return out
 
 
-def main(argv=None):
+def _main(argv, stage):
     ap = argparse.ArgumentParser()
     ap.add_argument("--today")
     ap.add_argument("--offline", action="store_true")
@@ -58,6 +58,7 @@ def main(argv=None):
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "data.enc"))
     args = ap.parse_args(argv)
 
+    stage["at"] = "secrets"
     pw = os.environ.get("APP_PASSPHRASE")
     if not pw:
         sys.exit("APP_PASSPHRASE secret is not set")
@@ -65,7 +66,9 @@ def main(argv=None):
     cfg = json.load(open(args.config))
     tz = ZoneInfo(cfg.get("timezone", "Australia/Sydney"))
     today = dt.date.fromisoformat(args.today) if args.today else dt.datetime.now(tz).date()
+    stage["at"] = "unlock"
     state = crypto.read(args.state, pw, default={}) or {}
+    stage["at"] = "sync"
     logs = []
     log = lambda m: (logs.append(m), print(m))
     status = state.setdefault("sync_status", {})
@@ -117,6 +120,7 @@ def main(argv=None):
     baselines = {**{k: v for k, v in state.get("physiology", {}).items()},
                  **{k: v for k, v in state.get("manual_baselines", {}).items()}}
 
+    stage["at"] = "plan"
     base = build_plan(cfg, baselines)
     res = Engine(base, state, cfg, today).run()
 
@@ -154,11 +158,44 @@ def main(argv=None):
         sync=status,
         log=logs[-30:],
     )
+    stage["at"] = "save"
+    stage["sync"] = {k: {"ok": v.get("ok"), "error": v.get("error")} for k, v in status.items()}
     crypto.write(args.out, bundle, pw)
     crypto.write(args.state, state, pw)
     if args.plain:
         json.dump(bundle, open(args.plain, "w"), indent=1)
     print(f"OK — {len(res['sessions'])} sessions, readiness {res['readiness']['status']}, form {res['form']}")
+
+
+STATUS = os.path.join(ROOT, "docs", "status.json")
+HINT = {
+    "unlock": "Can't decrypt saved data. The APP_PASSPHRASE secret probably changed since the last sync. "
+              "Set it back to the passphrase you unlock the app with.",
+    "secrets": "A required GitHub secret is missing.",
+}
+
+
+def main(argv=None):
+    """Runs the job and always leaves docs/status.json saying how it went (no personal data in it)."""
+    from zoneinfo import ZoneInfo
+    now = dt.datetime.now(ZoneInfo("Australia/Sydney")).isoformat(timespec="minutes")
+    stage = {"at": "start"}
+    try:
+        _main(argv, stage)
+        st = {"ok": True, "at": now, "sources": stage.get("sync", {})}
+    except BaseException as e:
+        if isinstance(e, SystemExit) and not e.code:
+            return
+        name = type(e).__name__
+        msg = str(e)[:160] if not name == "InvalidTag" else ""
+        st = {"ok": False, "at": now, "stage": stage["at"], "error": f"{name}{': ' + msg if msg else ''}",
+              "hint": HINT.get(stage["at"], "")}
+        if "--plain" not in (argv or sys.argv):
+            os.makedirs(os.path.dirname(STATUS), exist_ok=True)
+            json.dump(st, open(STATUS, "w"), indent=1)
+        raise
+    if "--plain" not in (argv or sys.argv):
+        json.dump(st, open(STATUS, "w"), indent=1)
 
 
 if __name__ == "__main__":

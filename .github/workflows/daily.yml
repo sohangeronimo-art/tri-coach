@@ -2,11 +2,13 @@ name: Sync & adapt
 
 on:
   schedule:
-    # Sydney time (AEDT): ~6am, ~9am and ~8pm. GitHub can run these a little late.
-    - cron: "0 19 * * *"
-    - cron: "0 22 * * *"
-    - cron: "0 9 * * *"
+    # Every ~2 hours from ~5am to ~11pm Sydney (AEDT). Off the hour: GitHub delays/drops more runs at :00.
+    - cron: "17 18,20,22 * * *"
+    - cron: "17 0,2,4,6,8,10,12 * * *"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["engine/**", "config/**", "app/**", ".github/workflows/daily.yml", "requirements.txt"]
 
 permissions:
   contents: write
@@ -36,9 +38,10 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python -m engine.run
       - name: Save
+        if: always()
         run: |
           git config user.name "tri-coach bot"
           git config user.email "actions@users.noreply.github.com"
-          git add docs/data.enc state/state.enc
+          git add docs/data.enc state/state.enc docs/status.json
           git diff --cached --quiet || git commit -m "Sync $(TZ=Australia/Sydney date '+%a %d %b %H:%M')"
           git pull --rebase --autostash && git push

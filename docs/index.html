@@ -323,8 +323,24 @@ async function load(){
     blob = await r.json();
   } catch (e) { return lockScreen(pass ? "nodata" : "first"); }
   if (!pass) return lockScreen("first", blob);
-  try { D = await decrypt(blob, pass); start(); }
+  try { D = await decrypt(blob, pass); await loadStatus(); start(); }
   catch { store.del("brick-pass"); lockScreen("wrong", blob); }
+}
+
+async function loadStatus(){
+  try { const r = await fetch("status.json?t=" + Date.now(), {cache:"no-store"}); if (r.ok) D.__status = await r.json(); } catch {}
+}
+
+function syncBanner(){
+  if (window.__DEMO__) return "";
+  const st = D.__status, gen = new Date(D.generated_at);
+  const hrs = (Date.now() - gen.getTime()) / 36e5;
+  const when = d => { const x = new Date(d); return `${DOW[x.getDay()]} ${x.getHours() % 12 || 12}:${String(x.getMinutes()).padStart(2, "0")}${x.getHours() < 12 ? "am" : "pm"}` };
+  if (st && st.ok === false && new Date(st.at) > gen)
+    return `<div class="card warn-card"><b>Last sync failed</b> (${when(st.at)}). Showing data from ${when(D.generated_at)}.
+      <div class="explain">${esc(st.hint || st.error || "")}</div></div>`;
+  if (hrs > 5) return `<div class="demo">Last updated ${when(D.generated_at)}. The next sync runs within about 2 hours.</div>`;
+  return "";
 }
 
 function lockScreen(mode, blob){
@@ -345,7 +361,7 @@ function lockScreen(mode, blob){
     const p = $("#pass").value;
     try {
       if (!blob){ const r = await fetch("data.enc?t=" + Date.now(), {cache:"no-store"}); blob = await r.json(); }
-      D = await decrypt(blob, p); store.set("brick-pass", p); start();
+      D = await decrypt(blob, p); store.set("brick-pass", p); await loadStatus(); start();
     } catch { lockScreen(blob ? "wrong" : "nodata", blob); }
   });
 }
@@ -459,7 +475,7 @@ function viewToday(){
 
   return `${planNote}
     ${ready}
-    <section><div class="sec-head"><h2>${sel === t ? "Today" : fmtDay(sel)}</h2><span class="aside">${sel === t ? fmtDay(t) : ""}</span></div>${dayBody}</section>
+    <section><div class="sec-head"><h2>${sel === t ? "Today" : fmtDay(sel)}</h2><span class="aside">${sel === t ? fmtDay(t) + (window.__DEMO__ ? "" : " · synced " + esc((D.generated_at || "").slice(11, 16))) : ""}</span></div>${dayBody}</section>
     ${recentSection()}
     ${chg}
     <section><div class="sec-head"><h2>Week ${w.index}</h2><span class="aside">${esc(w.phase_name)}${w.recovery ? " · recovery" : ""}</span></div>
@@ -721,7 +737,7 @@ function sheet(id){
 
 function render(){
   const V = {today:viewToday, plan:viewPlan, trends:viewTrends, zones:viewZones}[view] || viewToday;
-  $("#app").innerHTML = `${header()}<main class="wrap">${window.__DEMO__ ? `<div class="demo"><b>Demo data.</b> A simulated week 3 (mid-December): Tuesday's ride was missed and last night's sleep was rough, so you can see the plan adapt.</div>` : ""}${V()}</main>
+  $("#app").innerHTML = `${header()}<main class="wrap">${syncBanner()}${window.__DEMO__ ? `<div class="demo"><b>Demo data.</b> A simulated week 3 (mid-December): Tuesday's ride was missed and last night's sleep was rough, so you can see the plan adapt.</div>` : ""}${V()}</main>
     <div class="tabs"><nav>${["today","plan","trends","zones"].map(t => `<a href="#${t}" ${view === t ? 'aria-current="page"' : ""}>${TAB[t]}${t}</a>`).join("")}</nav></div>`;
 }
 
