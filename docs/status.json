@@ -1,0 +1,14 @@
+{
+ "ok": true,
+ "at": "2026-11-05T00:24+11:00",
+ "sources": {
+  "garmin": {
+   "ok": true,
+   "error": null
+  },
+  "strava": {
+   "ok": false,
+   "error": "Not set up yet"
+  }
+ }
+}
